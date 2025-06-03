@@ -45,7 +45,7 @@ class Render:
         track_height = max_y - min_y
         
         # Leave some padding (e.g., 10% of the screen dimensions)
-        padding = 0.1
+        padding = 0.4
         available_width = self.width * (1 - padding)
         available_height = self.height * (1 - padding)
         
@@ -167,7 +167,7 @@ class Render:
         # Blit the rotated car onto the screen
         self.screen.blit(rotated_car, rotated_car_rect.topleft)
         
-    def show_inputs(self, inputs):
+    def show_inputs(self, inputs, state):
         """
         Display the control inputs on the screen.
         :param inputs: Control inputs [acceleration, steering velocity].
@@ -186,12 +186,12 @@ class Render:
         # Acceleration text & bar
         acc_text = self.font.render(f"Acceleration: {acc:.2f}", True, (255, 255, 255))
         if acc > 0:
-            acc_bar = pygame.Rect(width/2, 50, acc*(width/2)/5, 5) 
+            acc_bar = pygame.Rect(width/2, 50, 0.9*acc*(width/2)/self.model.max_acc, 5) 
         else:
             if acc > 0:
-                acc_bar = pygame.Rect(width/2, 50, acc*(width/2)/5, 5)
+                acc_bar = pygame.Rect(width/2, 50, 0.9*acc*(width/2)/self.model.max_acc, 5)
             else:
-                acc_bar = pygame.Rect(width/2 + acc*(width/2)/5, 50, -acc*(width/2)/5, 5)
+                acc_bar = pygame.Rect(width/2 + 0.9*acc*(width/2)/self.model.max_acc, 50, -acc*(width/2)/self.model.max_acc, 5)
                 
         pygame.draw.rect(inputs_surface, (255, 255, 255), acc_bar)
         inputs_surface.blit(acc_text, (10, 10))
@@ -199,12 +199,21 @@ class Render:
         # Steering velocity text & bar
         steering_text = self.font.render(f"Steering Vel: {steering_vel:.2f}", True, (255, 255, 255))
         if steering_vel > 0:
-            steering_bar = pygame.Rect(width/2, 100, steering_vel*(width/2)/0.5, 5)
+            steering_bar = pygame.Rect(width/2, 100, steering_vel*(width/2)/self.model.max_steering_vel, 5)
         else:
-            steering_bar = pygame.Rect(width/2 + steering_vel*(width/2)/0.5, 100, -steering_vel*(width/2)/0.5, 5)
+            steering_bar = pygame.Rect(width/2 + steering_vel*(width/2)/self.model.max_steering_vel,
+                                       100, -steering_vel*(width/2)/self.model.max_steering_vel, 5)
             
         pygame.draw.rect(inputs_surface, (255, 255, 255), steering_bar)
         inputs_surface.blit(steering_text, (10, 70))
+        
+        # Velocity text
+        velocity_text = self.font.render(f"Vel: {state.v:.2f} m/s", True, (255, 255, 255))
+        vel_text_kmh = self.font.render(f"Vel: {state.v * 3.6:.2f} km/h", True, (255, 255, 255))
+        inputs_surface.blit(velocity_text, (10, 130))
+        inputs_surface.blit(vel_text_kmh, (10, 170))
+        
+        
         
         # Blit the inputs surface onto the screen
         self.screen.blit(inputs_surface, (self.screen.get_width() - width, 0))
@@ -223,7 +232,7 @@ class Render:
         self.screen.fill((255, 255, 255))
         self.draw_track()
         self.draw_vehicle(state)
-        self.show_inputs(inputs)
+        self.show_inputs(inputs, state)
         if trajectory is not None:
             self.draw_predicted_trajectory(trajectory)
         
