@@ -19,7 +19,7 @@ class MPC:
         self.trajectory.track.get_track_width()  # Set the track width in the trajectory
         self.states = np.array([0.0, 0.0]) # opt state -> acc, steering_vel 
         self.lambda_1 = 0.1  # Weight for acceleration in cost function
-        self.lambda_2 = 0.5
+        self.lambda_2 = 1.0
         self.opt_waypoints : list[Waypoint] = []
         self.opt_inputs : list[Inputs] = []  
               
@@ -88,7 +88,7 @@ class MPC:
             
             model_state = model.step(acc, steering_vel)
             
-            wp = self.trajectory.get_waypoint(closest_id + i)
+            wp = self.trajectory.get_waypoint(closest_id + i + 1 )
             x = model_state.x
             y = model_state.y
             

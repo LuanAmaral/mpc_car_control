@@ -11,8 +11,8 @@ class VehicleModel:
         self.state = State()
         self.wheelbase = wheelbase
         self.max_steering_angle = np.deg2rad(75)  
-        self.max_acc = 2.0 # TODO: use comfort criteria to set this value
-        self.max_steering_vel = np.deg2rad(45) # TODO: use comfort criteria to set this value
+        self.max_acc = 1.2 
+        self.max_steering_vel = 1 # TODO: use comfort criteria to set this value
         self.width = width  
         
     def define_state(self, x, y, psi, v, delta):
