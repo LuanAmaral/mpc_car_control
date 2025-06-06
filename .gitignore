@@ -28,3 +28,6 @@ Thumbs.db
 
 # Test files
 test*
+
+# Saved models
+*.pth
