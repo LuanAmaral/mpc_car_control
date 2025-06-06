@@ -5,9 +5,12 @@ from vehicle_model import VehicleModel as vm
 from generate_trajectory import Trajectory, Waypoint
 from tools.mpc_tools import State, Inputs
 
+
+#define seed
+torch.manual_seed(42)
 class DynamicModel(nn.Module):
     def __init__(self, state_size: int = 5, input_size: int = 2,
-                 hidden_size: int = 32, learning_rate: float = 0.001):
+                 hidden_size: int = 16, learning_rate: float = 0.001):
         super(DynamicModel, self).__init__()
         
         self.model = nn.Sequential(
@@ -18,8 +21,12 @@ class DynamicModel(nn.Module):
             nn.Linear(hidden_size, state_size)  # output is \Delta x
         )
         
+        self.gpu = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.cpu = torch.device("cpu")
+        
         self.criterion = nn.SmoothL1Loss()
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate, 
+                                          weight_decay=1e-6)
         
         self.state = State()
         self.max_steering_angle = 1  # TODO: use comfort criteria to set this value
@@ -31,8 +38,12 @@ class DynamicModel(nn.Module):
         """
         Executa a inferência para prever Δx.
         """
+        self.model.to(self.gpu)  
+        
         x = torch.cat((state_tensor, input_tensor), dim=-1)
-        delta_state = self.model(x)  # Δx
+        x = x.to(self.gpu)  
+        delta_state = self.model(x)  
+        delta_state = delta_state.to(self.cpu)
         return delta_state
     
     def step(self, acc: float, steering_vel: float):
@@ -71,24 +82,34 @@ class DynamicModel(nn.Module):
         """
         Realiza um passo de treinamento sobre Δx.
         """
+        delta_pred = delta_pred.to(self.gpu)  
+        delta_target = delta_target.to(self.gpu)
         loss = self.criterion(delta_pred, delta_target)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-        return loss.item()
+        return loss.item() 
     
-    def save(self, path='neural_delta_model.pth'):
+    def save(self, path='dynamic_model.pth'):
         """
         Salva os pesos do modelo.
         """
         torch.save(self.state_dict(), path)
 
-    def load(self, path='neural_delta_model.pth'):
+    def load(self, path='dynamic_model.pth'):
         """
         Carrega os pesos do modelo.
         """
         self.load_state_dict(torch.load(path))
         self.eval()
+        
+    def copy(self):
+        """
+        Cria uma cópia do modelo.
+        """
+        new_model = DynamicModel()
+        new_model.load_state_dict(self.state_dict())
+        return new_model
         
         
         
