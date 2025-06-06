@@ -5,17 +5,18 @@ from vehicle_model import VehicleModel
 from dynamic_model import DynamicModel
 from tools.mpc_tools import State
 
-N_SAMPLES = 10000
+N_SAMPLES = 1000000
 BATCH_SIZE = 128
 EPOCHS = 500
 LR = 0.001
 
 
-def generate_dataset(model, n_samples=10000):
+def generate_dataset(model, n_samples=10000, batch_size=1000):
     states = []
     inputs = []
     deltas = []
 
+    # General random samples
     for _ in range(n_samples):
         x = np.random.uniform(-10, 10)
         y = np.random.uniform(-10, 10)
@@ -25,8 +26,8 @@ def generate_dataset(model, n_samples=10000):
 
         state = np.array([x, y, psi, v, delta])
 
-        acc = np.random.uniform(-1.5, 1.5)
-        steering_vel = np.random.uniform(-0.3, 0.3)
+        acc = np.random.uniform(-1.2, 1.2)
+        steering_vel = np.random.uniform(-1, 1)
         input_ = np.array([acc, steering_vel])
 
         model.define_state(state[0], state[1], state[2], state[3], state[4])
@@ -47,12 +48,66 @@ def generate_dataset(model, n_samples=10000):
         inputs.append(input_)
         deltas.append(delta_state)
 
+    # Batch where each state variable varies independently
+    for i, (low, high) in enumerate([(-10, 10), (-10, 10), (-np.pi, np.pi), (0, 10), (-0.5, 0.5)]):
+        for _ in range(batch_size):
+            state = np.zeros(5)
+            state[i] = np.random.uniform(low, high)  # Vary only one state variable
+            state[3] = 1.0  # Set velocity to a constant for meaningful dynamics
+
+            acc = 0.0
+            steering_vel = 0.0
+            input_ = np.array([acc, steering_vel])
+
+            model.define_state(state[0], state[1], state[2], state[3], state[4])
+
+            next_state = model.step(acc, steering_vel)
+
+            next_state = np.array([
+                next_state.x,
+                next_state.y,
+                next_state.psi,
+                next_state.v,
+                next_state.delta
+            ])
+            
+            delta_state = next_state - state
+
+            states.append(state)
+            inputs.append(input_)
+            deltas.append(delta_state)
+
+    # Batch where each input variable varies independently
+    for i, (low, high) in enumerate([(-1.5, 1.5), (-0.3, 0.3)]):
+        for _ in range(batch_size):
+            state = np.array([0.0, 0.0, 0.0, 1.0, 0.0])  # Fixed state
+            input_ = np.zeros(2)
+            input_[i] = np.random.uniform(low, high)  # Vary only one input variable
+
+            model.define_state(state[0], state[1], state[2], state[3], state[4])
+
+            next_state = model.step(input_[0], input_[1])
+
+            next_state = np.array([
+                next_state.x,
+                next_state.y,
+                next_state.psi,
+                next_state.v,
+                next_state.delta
+            ])
+            
+            delta_state = next_state - state
+
+            states.append(state)
+            inputs.append(input_)
+            deltas.append(delta_state)
+
     return (np.array(states), np.array(inputs), np.array(deltas))
 
 
 physical_model = VehicleModel()
 
-states, controls, delta_states = generate_dataset(physical_model, N_SAMPLES)
+states, controls, delta_states = generate_dataset(physical_model, N_SAMPLES, BATCH_SIZE)
 
 idx = np.random.permutation(N_SAMPLES)
 states = states[idx]
@@ -93,7 +148,7 @@ for epoch in range(EPOCHS):
         batch_deltas = train_deltas[indices]
 
         # Forward
-        outputs = model(batch_states, batch_controls)
+        outputs = model.forward(batch_states, batch_controls)
 
         # Loss
         loss = model.train_step(outputs, batch_deltas)
@@ -112,7 +167,7 @@ for epoch in range(EPOCHS):
     
     
     if test_loss < best_loss:
-        if np.abs(test_loss - best_loss) < 1e-4:
+        if np.abs(test_loss - best_loss) < 1e-6:
             train_sat_count += 1
             if train_sat_count >= 10:
                 print("Early stopping triggered.")
