@@ -31,3 +31,7 @@ test*
 
 # Saved models
 *.pth
+
+# Videos and Images
+*.mp4
+*.png
