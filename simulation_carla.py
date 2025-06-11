@@ -37,15 +37,13 @@ def main():
         acc, steering_vel = mpc_controller.compute_control(state)
         control = carla_sim.convert_control_to_sim(acc, steering_vel)
         carla_sim.step(control)
-        
-        get_acc = carla_sim.ego.get_acceleration()
-        print(f"Acceleration: {get_acc}, velocity: {vehicle_state['v']} Steering Velocity: {steering_vel}")
                 
         if not render.render(vehicle.state, [acc, steering_vel], mpc_controller.get_opt_trajectory()):
             print("Rendering stopped.")
             break
         
     render.close()
+    carla_sim.generate_video("carla_simulation.mp4")
     
     
 if __name__ == "__main__":

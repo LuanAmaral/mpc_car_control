@@ -1,3 +1,4 @@
+import os
 import carla
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,7 +17,7 @@ class CarlaAPI:
         
         self._set_world_settings()
         self._set_ego_vehicle()
-        
+        self._set_camera()
     
     def _set_world_settings(self):
         self.world.set_weather(carla.WeatherParameters.ClearNoon)
@@ -36,6 +37,29 @@ class CarlaAPI:
         self.ego.apply_control(carla.VehicleControl(throttle=0.0, steer=0.0, brake=0.0))
         self.world.tick() 
         
+    def _set_camera(self):
+        if os.path.exists('camera_images'):
+            os.system('rm -rf camera_images')
+        if os.path.exists('carla_simulation.mp4'):
+            os.remove('carla_simulation.mp4')
+        
+        camera_bp = self.world.get_blueprint_library().find('sensor.camera.rgb')
+        camera_init_trans = carla.Transform( carla.Location(x=-6, z=3), carla.Rotation(yaw = 0, pitch=-8) )
+        self.camera = self.world.spawn_actor(camera_bp, camera_init_trans, attach_to=self.ego)
+        self.camera.listen(lambda image: self._camera_callback(image))
+        
+    def _camera_callback(self, image):
+        """
+        Callback function for the camera sensor.
+        :param image: Carla.Image object containing the camera image.
+        """
+        # Save image
+        image.save_to_disk('camera_images/%06d.png' % image.frame)
+        
+    def generate_video(self, output_file='carla_simulation.mp4'):
+        os.system(f'ffmpeg -framerate {int(1/self.dt)} -pattern_type glob -i "camera_images/*.png" -c:v libx264 -pix_fmt yuv420p ' + output_file)
+        print(f"Video saved to {output_file}")
+        
     def get_ego_specifications(self):
         physics = self.ego.get_physics_control()        
         max_steering_angle = np.deg2rad(max([wheel.max_steer_angle for wheel in physics.wheels]))
@@ -50,12 +74,14 @@ class CarlaAPI:
 
         mass = physics.mass
         max_torque = max(physics.torque_curve, key=lambda x: x.y).y  # Nm
-        wheel_radius = 0.3  # estimativa comum
+        wheel_radius = physics.wheels[0].radius
         max_acc = max_torque / (wheel_radius * mass)
         
         self.max_acc = max_acc
         self.max_steer = max_steering_angle
         self.wheelbase = wheelbase
+        
+        print(f"max_steer (rad): {self.max_steer}, deg: {np.rad2deg(self.max_steer)}")
         
         return {
             'max_acceleration': max_acc,
@@ -70,6 +96,8 @@ class CarlaAPI:
         self.delta = np.clip(self.delta, -self.max_steer, self.max_steer)
         self.delta = np.mod(self.delta + np.pi, 2 * np.pi) - np.pi
         
+        print(self.delta)
+        
         norm_acc = np.abs(acc) / self.max_acc
         if acc < 0:
             brake = -norm_acc
@@ -77,11 +105,11 @@ class CarlaAPI:
         else:
             brake = 0.0
             
-        norm_steer = np.clip(self.delta / self.max_steer, -1.0, 1.0)
+        norm_steer = -np.clip(self.delta / self.max_steer, -1.0, 1.0)
         
         control = carla.VehicleControl(
             throttle=norm_acc,
-            steer=-norm_steer,
+            steer=norm_steer,
             brake=brake
         )
         return control
@@ -101,11 +129,11 @@ class CarlaAPI:
         
         return {
             'x': location.x,
-            'y': location.y,
+            'y': -location.y,
             'z': location.z,
             'roll': rotation.roll,
             'pitch': rotation.pitch,
-            'yaw': rotation.yaw
+            'yaw': -rotation.yaw
         }
     
     def get_vehicle_state(self):
@@ -116,12 +144,14 @@ class CarlaAPI:
         transform = self.ego.get_transform()
         velocity = self.ego.get_velocity()
         
+        self.delta = -self.ego.get_control().steer
+        
         return {
             'x': transform.location.x,
-            'y': transform.location.y,
-            'psi': np.deg2rad(transform.rotation.yaw),
+            'y': -transform.location.y,
+            'psi': -np.deg2rad(transform.rotation.yaw),
             'v': np.sqrt(velocity.x**2 + velocity.y**2 + velocity.z**2),
-            'delta': np.deg2rad(self.delta)
+            'delta': self.delta
         }
         
     def get_trajectory(self, num_points=2500, lookahead=500.0, target_vel=5.5):
@@ -198,7 +228,7 @@ class CarlaAPI:
                 
                 trajectory.append([
                     next_wp.transform.location.x,
-                    next_wp.transform.location.y
+                    -next_wp.transform.location.y
                 ])
                 
                 current_wp = next_wp
@@ -208,7 +238,7 @@ class CarlaAPI:
             else:
                 break
         
-        return np.array(trajectory[5:])
+        return np.array(trajectory)
     
     def plot_map_topology(self):
         topology = self.map.get_topology()
@@ -216,7 +246,7 @@ class CarlaAPI:
         for segment in topology:
             start_wp = segment[0].transform.location
             end_wp = segment[1].transform.location
-            ax.plot([start_wp.x, end_wp.x], [start_wp.y, end_wp.y], 'k-', linewidth=0.5)
+            ax.plot([start_wp.x, end_wp.x], [-start_wp.y, -end_wp.y], 'k-', linewidth=0.5)
             
         trajectory = self.get_trajectory()
             
