@@ -44,8 +44,8 @@ class Render:
         track_width = max_x - min_x
         track_height = max_y - min_y
         
-        # Leave some padding (e.g., 10% of the screen dimensions)
-        padding = 0.4
+        # Leave some padding (e.g., 5% of the screen dimensions)
+        padding = 0.05
         available_width = self.width * (1 - padding)
         available_height = self.height * (1 - padding)
         
@@ -213,7 +213,9 @@ class Render:
         inputs_surface.blit(velocity_text, (10, 130))
         inputs_surface.blit(vel_text_kmh, (10, 170))
         
-        
+        # Steering angle text
+        steering_angle_text = self.font.render(f"Steer Angle: {state.delta:.2f} rad", True, (255, 255, 255))
+        inputs_surface.blit(steering_angle_text, (10, 210))
         
         # Blit the inputs surface onto the screen
         self.screen.blit(inputs_surface, (self.screen.get_width() - width, 0))
