@@ -42,7 +42,7 @@ class MPC:
         if not result.success:
             raise RuntimeError("MPC optimization failed: " + result.message)
         
-        print(result.fun)
+        # print(result.fun)
         self._get_optimized_trajectory(result.x)
                 
         # Extract the control inputs from the optimized state
