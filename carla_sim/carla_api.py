@@ -1,6 +1,7 @@
 import carla
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 class CarlaAPI:
     def __init__(self, dt=0.1):
@@ -10,6 +11,8 @@ class CarlaAPI:
         self.client.set_timeout(10.0)
         self.world = world = self.client.load_world('Town01_Opt')
         self.map = self.world.get_map()
+        
+        self.delta = 0.0
         
         self._set_world_settings()
         self._set_ego_vehicle()
@@ -38,12 +41,12 @@ class CarlaAPI:
         max_steering_angle = np.deg2rad(max([wheel.max_steer_angle for wheel in physics.wheels]))
         
         wheelbase = 0.0
-        front_wheels = [w for w in physics.wheels if w.position.x > 0]
-        rear_wheels = [w for w in physics.wheels if w.position.x < 0]
-        if front_wheels and rear_wheels:
-            front_x = sum(w.position.x for w in front_wheels) / len(front_wheels)
-            rear_x = sum(w.position.x for w in rear_wheels) / len(rear_wheels)
-            wheelbase = abs(front_x - rear_x)
+        wheel_positions = [wheel.position for wheel in physics.wheels]
+
+        most_forward = max(wheel_positions, key=lambda pos: pos.x)
+        most_rearward = min(wheel_positions, key=lambda pos: pos.x)
+        
+        wheelbase = abs(most_forward.x - most_rearward.x)/100
 
         mass = physics.mass
         max_torque = max(physics.torque_curve, key=lambda x: x.y).y  # Nm
@@ -61,7 +64,12 @@ class CarlaAPI:
             'wheelbase': wheelbase
         }           
             
-    def convert_control_to_sim(self, acc, steer_angle):
+    def convert_control_to_sim(self, acc, steer_vel):
+        
+        self.delta = self.delta + steer_vel * self.dt
+        self.delta = np.clip(self.delta, -self.max_steer, self.max_steer)
+        self.delta = np.mod(self.delta + np.pi, 2 * np.pi) - np.pi
+        
         norm_acc = np.abs(acc) / self.max_acc
         if acc < 0:
             brake = -norm_acc
@@ -69,14 +77,23 @@ class CarlaAPI:
         else:
             brake = 0.0
             
-        norm_steer = np.clip(steer_angle / self.max_steer, -1.0, 1.0)
+        norm_steer = np.clip(self.delta / self.max_steer, -1.0, 1.0)
         
         control = carla.VehicleControl(
             throttle=norm_acc,
-            steer=norm_steer,
+            steer=-norm_steer,
             brake=brake
         )
         return control
+    
+    def step(self, control):
+        """
+        Apply control to the ego vehicle and advance the simulation.
+        :param control: Carla.VehicleControl object containing throttle, steer, and brake.
+        """
+        self.ego.apply_control(control)
+        self.world.tick()
+        time.sleep(self.dt)
     
     def get_vehicle_position(self):
         location = self.ego.get_location()
@@ -90,35 +107,65 @@ class CarlaAPI:
             'pitch': rotation.pitch,
             'yaw': rotation.yaw
         }
+    
+    def get_vehicle_state(self):
+        """
+        Get the current state of the ego vehicle.
+        :return: A dictionary containing the vehicle's position and orientation.
+        """
+        transform = self.ego.get_transform()
+        velocity = self.ego.get_velocity()
         
-    def get_trajectory(self, num_points=500, target_vel=5.5, lookahead=250.0):
+        return {
+            'x': transform.location.x,
+            'y': transform.location.y,
+            'psi': np.deg2rad(transform.rotation.yaw),
+            'v': np.sqrt(velocity.x**2 + velocity.y**2 + velocity.z**2),
+            'delta': np.deg2rad(self.delta)
+        }
+        
+    def get_trajectory(self, num_points=2500, lookahead=500.0, target_vel=5.5):
         d_distance = target_vel * self.dt
         trajectory = []
 
-        # Get current vehicle state and waypoint
+        # Get current vehicle state
         vehicle_transform = self.ego.get_transform()
         current_location = vehicle_transform.location
         current_yaw = np.deg2rad(vehicle_transform.rotation.yaw)
         
+        # Start with vehicle's current position as first point
+        # trajectory.append([current_location.x, current_location.y])
+        
+        # Get waypoint at current location
+        current_wp = self.map.get_waypoint(current_location, 
+                                        project_to_road=True, 
+                                        lane_type=carla.LaneType.Driving)
+        
+        if not current_wp:
+            return np.array(trajectory)  # Return just vehicle position if no waypoint found
+
         # Get the complete road topology
         topology = self.map.get_topology()
         
         # Find the current road segment
-        current_wp = self.map.get_waypoint(current_location, project_to_road=True, lane_type=carla.LaneType.Driving)
         current_segment = None
         for segment in topology:
-            if segment[0].road_id == current_wp.road_id and segment[0].lane_id == current_wp.lane_id:
+            if (segment[0].road_id == current_wp.road_id and 
+                segment[0].lane_id == current_wp.lane_id):
                 current_segment = segment
                 break
         
         if not current_segment:
-            # Fallback to simple method if current segment not found
-            return self.get_trajectory(num_points, target_vel)
+            # Fallback - generate straight trajectory from vehicle position
+            for i in range(1, num_points):
+                x = current_location.x + np.cos(current_yaw) * d_distance * i
+                y = current_location.y + np.sin(current_yaw) * d_distance * i
+                trajectory.append([x, y])
+            return np.array(trajectory)
         
         # Generate trajectory following the road segments
         accumulated_distance = 0.0
-        remaining_points = num_points
-        current_wp = current_segment[0]
+        remaining_points = num_points - 1  # Subtract 1 for vehicle position
         
         while remaining_points > 0 and accumulated_distance < lookahead:
             # Get next waypoints along the current segment
@@ -128,28 +175,31 @@ class CarlaAPI:
                 # Try to find next segment in topology
                 next_segment = None
                 for segment in topology:
-                    if segment[0].road_id == current_wp.road_id and segment[0].lane_id == current_wp.lane_id:
+                    if (segment[0].road_id == current_wp.road_id and 
+                        segment[0].lane_id == current_wp.lane_id):
                         next_segment = segment
                         break
                 
-                if next_segment and next_segment[0].transform.location.distance(current_wp.transform.location) < 2*d_distance:
+                if (next_segment and 
+                    next_segment[0].transform.location.distance(
+                        current_wp.transform.location) < 2*d_distance):
                     current_wp = next_segment[0]
                     next_wps = current_wp.next(d_distance)
                 else:
                     break
             
             if next_wps:
-                # Choose the waypoint that continues in the same lane/road
+                # Choose the waypoint that continues most straight
                 next_wp = min(next_wps, key=lambda wp: (
                     wp.road_id != current_wp.road_id,
                     wp.lane_id != current_wp.lane_id,
-                    abs(np.deg2rad(wp.transform.rotation.yaw) - current_yaw)
-                ))
+                    abs(np.deg2rad(wp.transform.rotation.yaw) - current_yaw
+                )))
                 
-                trajectory.append({
-                    'x': next_wp.transform.location.x,
-                    'y': next_wp.transform.location.y
-                })
+                trajectory.append([
+                    next_wp.transform.location.x,
+                    next_wp.transform.location.y
+                ])
                 
                 current_wp = next_wp
                 accumulated_distance += d_distance
@@ -158,7 +208,7 @@ class CarlaAPI:
             else:
                 break
         
-        return trajectory
+        return np.array(trajectory[5:])
     
     def plot_map_topology(self):
         topology = self.map.get_topology()
@@ -168,10 +218,10 @@ class CarlaAPI:
             end_wp = segment[1].transform.location
             ax.plot([start_wp.x, end_wp.x], [start_wp.y, end_wp.y], 'k-', linewidth=0.5)
             
-        trajectory = self.get_trajectory(num_points=5000, lookahead=1000.0)
+        trajectory = self.get_trajectory()
             
-        x_coords = [point['x'] for point in trajectory]
-        y_coords = [point['y'] for point in trajectory]
+        x_coords = [point[0] for point in trajectory]
+        y_coords = [point[1] for point in trajectory]
 
         # Create a color scale based on the order of the points
         points_order = np.arange(len(trajectory))

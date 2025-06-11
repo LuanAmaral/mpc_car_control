@@ -26,12 +26,15 @@ class CarlaTrack(Track):
         self.center_of_track = self.carla_api.get_trajectory()
         
         # Create left and right cones based on the center of the track and track width
+        angle = 0.0
         for i in range(len(self.center_of_track)):
             x, y = self.center_of_track[i]
-            next_x, next_y = self.center_of_track[i + 1]
-            dx = next_x - x
-            dy = next_y - y
-            angle = np.arctan2(dy, dx)
+            if not (i == len(self.center_of_track) - 1):
+                # If it's the last point, connect it to the first point
+                next_x, next_y = self.center_of_track[i + 1]
+                dx = next_x - x
+                dy = next_y - y
+                angle = np.arctan2(dy, dx)
             
             left_x = x - self.track_width / 2 * np.sin(angle)
             left_y = y + self.track_width / 2 * np.cos(angle)

@@ -22,6 +22,34 @@ class Track:
         screen = pygame.display.set_mode((screen_width, screen_height))
         pygame.display.set_caption("Track")
         clock = pygame.time.Clock()
+        
+        # Collect all points to determine scaling
+        all_points = []
+        all_points.extend(self.left_cones)
+        all_points.extend(self.right_cones)
+        all_points.extend(self.start_cones.T)
+        all_points.extend(self.center_of_track)
+        all_points.append(self.start_point[:2])  # Only need x,y
+        
+        # Find min/max coordinates
+        all_points = np.array(all_points)
+        min_x, min_y = np.min(all_points, axis=0)
+        max_x, max_y = np.max(all_points, axis=0)
+        
+        # Calculate scaling factor (80 is original scale, adjust if needed)
+        scale = 80  # Start with original scale
+        content_width = (max_x - min_x) * scale
+        content_height = (max_y - min_y) * scale
+        
+        # If content is too large, reduce scale
+        max_content_size = min(screen_width, screen_height) * 0.9
+        if max(content_width, content_height) > max_content_size:
+            scale = max_content_size / max(content_width, content_height) * 80
+        
+        # Calculate center offset
+        center_x = (min_x + max_x) / 2
+        center_y = (min_y + max_y) / 2
+        
         running = True
         while running:
             for event in pygame.event.get():
@@ -30,32 +58,39 @@ class Track:
                     pygame.quit()
 
             screen.fill((255, 255, 255))
-            # Draw left cones
+            
+            # Draw left cones (blue)
             for cone in self.left_cones:
-                pygame.draw.circle(screen, (0, 0, 255), (int(cone[0] * 80 + screen_width / 2), int(-cone[1] * 80 + screen_height / 2)), 5)
+                x = int((cone[0] - center_x) * scale + screen_width / 2)
+                y = int(-(cone[1] - center_y) * scale + screen_height / 2)
+                pygame.draw.circle(screen, (0, 0, 255), (x, y), 5)
 
-            # Draw right cones
+            # Draw right cones (yellow)
             for cone in self.right_cones:
-                pygame.draw.circle(screen, (255, 255, 0), (int(cone[0] * 80 + screen_width / 2), int(-cone[1] * 80 + screen_height / 2)), 5)
+                x = int((cone[0] - center_x) * scale + screen_width / 2)
+                y = int(-(cone[1] - center_y) * scale + screen_height / 2)
+                pygame.draw.circle(screen, (255, 255, 0), (x, y), 5)
 
-            # Draw start cones
+            # Draw start cones (orange)
             for cone in self.start_cones.T:
-                pygame.draw.circle(screen, (255, 165, 0), (int(cone[0] * 80 + screen_width / 2), int(-cone[1] * 80 + screen_height / 2)), 5)
+                x = int((cone[0] - center_x) * scale + screen_width / 2)
+                y = int(-(cone[1] - center_y) * scale + screen_height / 2)
+                pygame.draw.circle(screen, (255, 165, 0), (x, y), 5)
                 
-            # Draw center of track
+            # Draw center of track (green)
             for cone in self.center_of_track:
-                pygame.draw.circle(screen, (0, 255, 0), (int(cone[0] * 80 + screen_width / 2), int(-cone[1] * 80 + screen_height / 2)), 5)
+                x = int((cone[0] - center_x) * scale + screen_width / 2)
+                y = int(-(cone[1] - center_y) * scale + screen_height / 2)
+                pygame.draw.circle(screen, (0, 255, 0), (x, y), 5)
 
             # Draw car's start position
-            start_position = self.start_point
+            car_x = int((self.start_point[0] - center_x) * scale + screen_width / 2)
+            car_y = int(-(self.start_point[1] - center_y) * scale + screen_height / 2)
             
-            car_surface = pygame.Surface((40, 20), pygame.SRCALPHA)  # Create a transparent surface
-            car_surface.fill((255, 0, 0))  # Fill the car surface with red (or any color)
-            rotated_car = pygame.transform.rotate(car_surface, -start_position[2] * 180 / np.pi)
-            rotated_car_rect = rotated_car.get_rect(center=(int(start_position[0] * 80 + screen_width / 2), 
-                                                            int(-start_position[1] * 80 + screen_height / 2)))
-
-            # Blit the rotated car onto the screen
+            car_surface = pygame.Surface((40, 20), pygame.SRCALPHA)
+            car_surface.fill((255, 0, 0))
+            rotated_car = pygame.transform.rotate(car_surface, -self.start_point[2] * 180 / np.pi)
+            rotated_car_rect = rotated_car.get_rect(center=(car_x, car_y))
             screen.blit(rotated_car, rotated_car_rect)
 
             pygame.display.flip()
