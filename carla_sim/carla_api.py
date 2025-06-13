@@ -96,19 +96,24 @@ class CarlaAPI:
         self.delta = np.clip(self.delta, -self.max_steer, self.max_steer)
         self.delta = np.mod(self.delta + np.pi, 2 * np.pi) - np.pi
         
-        print(self.delta)
-        
-        norm_acc = np.abs(acc) / self.max_acc
-        if acc < 0:
-            brake = -norm_acc
-            norm_acc = 0.0
-        else:
-            brake = 0.0
-            
         norm_steer = -np.clip(self.delta / self.max_steer, -1.0, 1.0)
         
+        throttle = 0.0
+        brake = 0.0
+        
+        if acc >= 0.1:
+            throttle = np.clip(acc / self.max_acc, 0.0, 1.0)
+        elif acc <= -0.8:
+            # só freia com aceleração muito negativa
+            brake = np.clip(-acc-0.8 / self.max_acc, 0.0, 1.0)
+        else:
+            # para acelerações pequenas negativas, apenas solta o acelerador
+            throttle = 0.0
+            brake = 0.0
+            
+        
         control = carla.VehicleControl(
-            throttle=norm_acc,
+            throttle=throttle,
             steer=norm_steer,
             brake=brake
         )

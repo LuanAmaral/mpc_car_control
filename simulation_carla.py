@@ -19,7 +19,7 @@ def main():
     initial_position = track.start_point
     vehicle.define_state(initial_position[0], initial_position[1], initial_position[2], initial_position[3], initial_position[4])
     
-    mpc_controller = MPC(trajectory, vehicle, Np=15, dt=dt)
+    mpc_controller = MPC(trajectory, vehicle, Np=25, dt=dt)
     render = Render(track, vehicle)
     episodes = 1000
     
