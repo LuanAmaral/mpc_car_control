@@ -63,25 +63,25 @@ class Track:
             for cone in self.left_cones:
                 x = int((cone[0] - center_x) * scale + screen_width / 2)
                 y = int(-(cone[1] - center_y) * scale + screen_height / 2)
-                pygame.draw.circle(screen, (0, 0, 255), (x, y), 5)
+                pygame.draw.circle(screen, (250, 158, 86), (x, y), 5)
 
             # Draw right cones (yellow)
             for cone in self.right_cones:
                 x = int((cone[0] - center_x) * scale + screen_width / 2)
                 y = int(-(cone[1] - center_y) * scale + screen_height / 2)
-                pygame.draw.circle(screen, (255, 255, 0), (x, y), 5)
+                pygame.draw.circle(screen, (250, 158, 86), (x, y), 5)
 
             # Draw start cones (orange)
             for cone in self.start_cones.T:
                 x = int((cone[0] - center_x) * scale + screen_width / 2)
                 y = int(-(cone[1] - center_y) * scale + screen_height / 2)
-                pygame.draw.circle(screen, (255, 165, 0), (x, y), 5)
+                pygame.draw.circle(screen, (250, 158, 86), (x, y), 5)
                 
             # Draw center of track (green)
             for cone in self.center_of_track:
                 x = int((cone[0] - center_x) * scale + screen_width / 2)
                 y = int(-(cone[1] - center_y) * scale + screen_height / 2)
-                pygame.draw.circle(screen, (0, 255, 0), (x, y), 5)
+                pygame.draw.circle(screen, (210, 210, 210), (x, y), 5)
 
             # Draw car's start position
             car_x = int((self.start_point[0] - center_x) * scale + screen_width / 2)
