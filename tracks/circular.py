@@ -9,6 +9,7 @@ class CircularTrack(Track):
     
     def __init__(self, radius=5.0, num_points=100, track_width=2.0):
         super().__init__()
+        self.name = "Circular"
         self.radius = radius
         self.num_points = num_points
         self.track_width = track_width

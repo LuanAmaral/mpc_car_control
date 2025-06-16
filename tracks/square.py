@@ -9,6 +9,7 @@ class SquareTrack(Track):
     
     def __init__(self, side_length=10.0, points_per_side=50, track_width=2.0):
         super().__init__()
+        self.name = "Square"
         self.side_length = side_length
         self.points_per_side = points_per_side
         self.track_width = track_width

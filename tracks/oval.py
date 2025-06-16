@@ -8,6 +8,7 @@ class OvalTrack(Track):
     """
     def __init__(self, major_axis=10.0, minor_axis=5.0, num_points=100, track_width=2.0):
         super().__init__()
+        self.name = "Oval"
         self.major_axis = major_axis
         self.minor_axis = minor_axis
         self.num_points = num_points
