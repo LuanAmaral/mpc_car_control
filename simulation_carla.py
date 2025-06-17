@@ -25,6 +25,8 @@ def main():
     episodes = 800
     
     error = []
+    lat_error = []
+    
     des_pos = []
     pos = []
     
@@ -54,6 +56,9 @@ def main():
         err = wp - vehicle_pos
         error.append(err)
         
+        lat_err = wp.to_frame(vehicle_pos).y
+        lat_error.append(lat_err)
+        
         des_pos.append([wp.x, wp.y])
         pos.append([vehicle_state['x'], vehicle_state['y']])
         
@@ -70,6 +75,7 @@ def main():
     
     fig, ax = plt.subplots()
     ax.plot(error, label='Error')
+    ax.plot(lat_error, label='Lateral Error', color='orange')
     ax.set_xlabel('Episode')
     ax.set_ylabel('Error')
     ax.set_title('Error Over Episodes')

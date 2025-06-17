@@ -24,7 +24,7 @@ def main():
     
     
     vehicle = vm(dt=dt, wheelbase=2.0, width=1.8)
-    sim_vehicle = vm(dt=dt, wheelbase=2.8, width=1.8)
+    sim_vehicle = vm(dt=dt, wheelbase=2.0, width=1.8)
     
     inital_position = track.start_point
     
@@ -33,11 +33,13 @@ def main():
 
     
     mpc_controller = MPC(trajectory, vehicle, Np=15, dt=0.1)
-    render = Render(track, vehicle)
+    # render = Render(track, vehicle)
     
     episodes = 1000
     
     error = []
+    lat_error = []
+    
     des_pos = []
     pos = []
     
@@ -55,18 +57,21 @@ def main():
         err = wp - vehicle_pos
         error.append(err)
         
+        lat_err = wp.to_frame(vehicle_pos).y
+        lat_error.append(lat_err)
+        
         des_pos.append([wp.x, wp.y])
         pos.append([sim_vehicle.state.x, sim_vehicle.state.y])
         
         input_acc.append(acc)
         input_svel.append(steering_vel)
         
-        if not render.render(sim_vehicle.state, [acc, steering_vel], mpc_controller.get_opt_trajectory()):
-            print("Rendering stopped.")
-            break
+        # if not render.render(sim_vehicle.state, [acc, steering_vel], mpc_controller.get_opt_trajectory()):
+        #     print("Rendering stopped.")
+        #     break
         
         
-    render.close()
+    # render.close()
        
     label = "" 
     if vehicle.wheelbase != sim_vehicle.wheelbase:
@@ -74,6 +79,7 @@ def main():
         
     fig, ax = plt.subplots()
     ax.plot(error, label='Error')
+    ax.plot(lat_error, label='Lateral Error', color='orange')
     ax.set_xlabel('Episode')
     ax.set_ylabel('Error')
     ax.set_title('Error Over Episodes')
@@ -117,6 +123,7 @@ def main():
     fig.savefig(f"images/inputs_{track.name}{label}.png")
     plt.show()
     
+    print("saving image: label: ", label)
         
 if __name__ == "__main__":
     main()

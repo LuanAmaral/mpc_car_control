@@ -15,6 +15,21 @@ class Waypoint:
     def __repr__(self):
         return f"Waypoint(x={self.x}, y={self.y}, psi={self.psi}, kappa={self.kappa})"
     
+    def to_frame(self, waypoint):
+        """
+        Convert the waypoint to the waypoint's frame of reference.
+        :param waypoint: The waypoint to convert to the frame of reference.
+        :return: A new Waypoint in the frame of reference of the given waypoint.
+        """
+        dx = waypoint.x - self.x
+        dy = waypoint.y - self.y
+        
+        # Rotate the coordinates to the frame of reference of the given waypoint
+        x_frame = dx * np.cos(waypoint.psi) + dy * np.sin(waypoint.psi)
+        y_frame = -dx * np.sin(waypoint.psi) + dy * np.cos(waypoint.psi)
+        
+        return Waypoint(x_frame, y_frame, 0, self.kappa)
+    
 class Trajectory:
     def __init__(self, track: Track):
         self.waypoints : list[Waypoint] = []
